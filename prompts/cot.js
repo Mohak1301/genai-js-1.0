@@ -1,6 +1,7 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { OpenAI } from 'openai';
 
+dotenv.config();
 const client = new OpenAI();
 
 async function main() {
@@ -82,17 +83,50 @@ async function main() {
     if (parsedContent.step === 'THINK') {
       console.log(`\t🧠`, parsedContent.content);
 
-      // Todo: Send the messages as history to maybe gemini and ask for a review and append it to history
-      // LLM as a judge techniuqe
+  
+      continue;
+    }
+
+    if (parsedContent.step === 'EVALUATE') {
+
+      // Use OpenAI for evaluation instead of Gemini
+      const evaluationMessages = messages.filter(msg => msg.role !== 'system');
+
+      console.log(evaluationMessages, "these are evaluation messages");
+      const response2 = await client.chat.completions.create({
+        model: 'gpt-3.5-turbo', // Using a different OpenAI model for evaluation
+        messages: [{
+          role: 'system',
+          content: `
+            You are a judge who is evaluating the assistant's response.
+            You are given the assistant's response and the entire chat history.
+            You need to evaluate the assistant's latest THINK step in context of the user query.
+            
+            Provide a brief evaluation (1-2 sentences) on whether the thinking is:
+            - Logical and relevant to the problem
+            - Moving in the right direction
+            - Clear and well-structured
+            
+            Return only the evaluation text, no JSON formatting.
+          `
+        }, ...evaluationMessages],
+      });
+
+      // console.log(response2.choices[0].message, "this is response2");
+
+      const evaluation = response2.choices[0].message.content;
+      // console.log(evaluation, "this is evaluation");
+      console.log(`\t✅ Evaluation:`, evaluation);
+      
       messages.push({
         role: 'developer',
         content: JSON.stringify({
           step: 'EVALUATE',
-          content: 'Nice, You are going on correct path',
+          content: evaluation,
         }),
       });
-
       continue;
+
     }
 
     if (parsedContent.step === 'OUTPUT') {
